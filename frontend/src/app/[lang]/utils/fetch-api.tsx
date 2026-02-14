@@ -16,8 +16,11 @@ export async function fetchAPI(
       ...options,
     };
 
-    // Build request URL
-    const queryString = qs.stringify(urlParamsObject);
+    // Build request URL with proper qs configuration for nested objects
+    const queryString = qs.stringify(urlParamsObject, {
+      encodeValuesOnly: true, // prettify URL
+      encode: false, // 不编码键名，保留 populate[navbar][populate] 格式
+    });
     const requestUrl = `${getStrapiURL(
       `/api${path}${queryString ? `?${queryString}` : ""}`
     )}`;
@@ -25,6 +28,7 @@ export async function fetchAPI(
     // Trigger API call
     const response = await fetch(requestUrl, mergedOptions);
     const data = await response.json();
+    
     return data;
     
   } catch (error) {

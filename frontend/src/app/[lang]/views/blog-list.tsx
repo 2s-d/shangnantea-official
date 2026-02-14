@@ -26,20 +26,6 @@ interface Article {
         };
       };
     };
-    authorsBio: {
-      data: {
-        attributes: {
-          name: string;
-          avatar: {
-            data: {
-              attributes: {
-                url: string;
-              };
-            };
-          };
-        };
-      };
-    };
   };
 }
 
@@ -59,11 +45,6 @@ export default function PostList({
           );
 
           const category = article.attributes.category.data?.attributes;
-          const authorsBio = article.attributes.authorsBio.data?.attributes;
-
-          const avatarUrl = getStrapiMedia(
-            authorsBio?.avatar.data.attributes.url
-          );
 
           return (
             <Link
@@ -81,16 +62,6 @@ export default function PostList({
                 />
               )}
               <div className="p-6 space-y-2 relative">
-                {avatarUrl && (
-                  <Image
-                    alt="avatar"
-                    width="80"
-                    height="80"
-                    src={avatarUrl}
-                    className="rounded-full h-16 w-16 object-cover absolute -top-8 right-4"
-                  />
-                )}
-
                 <h3 className="text-2xl font-semibold group-hover:underline group-focus:underline">
                   {article.attributes.title}
                 </h3>
@@ -99,9 +70,9 @@ export default function PostList({
                   <span className="text-xs dark:text-gray-400">
                     {formatDate(article.attributes.publishedAt)}
                   </span>
-                  {authorsBio && (
-                    <span className="text-xs dark:text-gray-400">
-                      {authorsBio.name}
+                  {category && (
+                    <span className="text-xs dark:text-gray-400 bg-green-100 text-green-800 px-2 py-1 rounded">
+                      {category.name}
                     </span>
                   )}
                 </div>

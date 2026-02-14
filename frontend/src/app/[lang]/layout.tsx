@@ -1,56 +1,36 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { getStrapiMedia, getStrapiURL } from "./utils/api-helpers";
-import { fetchAPI } from "./utils/fetch-api";
+import Link from "next/link";
+import { fetchGlobal } from "./utils/tea-api";
+import { getStrapiMedia } from "./utils/api-helpers";
 
-import { i18n } from "../../../i18n-config";
-import Banner from "./components/Banner";
-import Footer from "./components/Footer";
-import Navbar from "./components/Navbar";
-import {FALLBACK_SEO} from "@/app/[lang]/utils/constants";
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const global = await fetchGlobal();
+    const { metadata, favicon } = global.attributes;
 
+    // 获取 favicon URL
+    const faviconUrl = favicon?.data?.attributes?.url 
+      ? getStrapiMedia(favicon.data.attributes.url)
+      : null;
 
-async function getGlobal(lang: string): Promise<any> {
-  const token = process.env.NEXT_PUBLIC_STRAPI_API_TOKEN;
-
-  if (!token) throw new Error("The Strapi API Token environment variable is not set.");
-
-  const path = `/global`;
-  const options = { headers: { Authorization: `Bearer ${token}` } };
-
-  const urlParamsObject = {
-    populate: [
-      "metadata.shareImage",
-      "favicon",
-      "notificationBanner.link",
-      "navbar.links",
-      "navbar.navbarLogo.logoImg",
-      "footer.footerLogo.logoImg",
-      "footer.menuLinks",
-      "footer.legalLinks",
-      "footer.socialLinks",
-      "footer.categories",
-    ],
-    locale: lang,
-  };
-  return await fetchAPI(path, urlParamsObject, options);
-}
-
-export async function generateMetadata({ params } : { params: {lang: string}}): Promise<Metadata> {
-  const meta = await getGlobal(params.lang);
-
-  if (!meta.data) return FALLBACK_SEO;
-
-  const { metadata, favicon } = meta.data.attributes;
-  const { url } = favicon.data.attributes;
-
-  return {
-    title: metadata.metaTitle,
-    description: metadata.metaDescription,
-    icons: {
-      icon: [new URL(url, getStrapiURL())],
-    },
-  };
+    return {
+      title: metadata.metaTitle,
+      description: metadata.metaDescription,
+      ...(faviconUrl && {
+        icons: {
+          icon: faviconUrl,
+          shortcut: faviconUrl,
+          apple: faviconUrl,
+        },
+      }),
+    };
+  } catch (error) {
+    return {
+      title: "商南茶城",
+      description: "传承千年茶文化，品味自然好茶",
+    };
+  }
 }
 
 export default async function RootLayout({
@@ -60,48 +40,126 @@ export default async function RootLayout({
   readonly children: React.ReactNode;
   readonly params: { lang: string };
 }) {
-  const global = await getGlobal(params.lang);
-  // TODO: CREATE A CUSTOM ERROR PAGE
-  if (!global.data) return null;
-  
-  const { notificationBanner, navbar, footer } = global.data.attributes;
+  const global = await fetchGlobal();
+  const navbar = global?.attributes?.navbar;
+  const footer = global?.attributes?.footer;
 
-  const navbarLogoUrl = getStrapiMedia(
-    navbar.navbarLogo.logoImg.data?.attributes.url
-  );
+  // 如果没有数据，直接抛出错误，不使用 fallback
+  if (!navbar || !navbar.links || !navbar.button) {
+    throw new Error("Navbar data is missing from CMS!");
+  }
+  if (!footer || !footer.menuLinks || !footer.legalLinks) {
+    throw new Error("Footer data is missing from CMS!");
+  }
 
-  const footerLogoUrl = getStrapiMedia(
-    footer.footerLogo.logoImg.data?.attributes.url
-  );
+  // 获取 logo 数据
+  const logoImg = navbar.navbarLogo?.logoImg?.data?.attributes?.url
+    ? getStrapiMedia(navbar.navbarLogo.logoImg.data.attributes.url)
+    : null;
+  const logoText = navbar.navbarLogo?.logoText || "商南茶城";
 
   return (
     <html lang={params.lang}>
       <body>
-        <Navbar
-          links={navbar.links}
-          logoUrl={navbarLogoUrl}
-          logoText={navbar.navbarLogo.logoText}
-        />
+        {/* Navbar - 始终显示 */}
+        <nav className="bg-white shadow-md">
+          <div className="container mx-auto px-4">
+            <div className="flex justify-between items-center h-16">
+              <Link href="/" className="flex items-center gap-3">
+                {logoImg && (
+                  <img 
+                    src={logoImg} 
+                    alt={logoText}
+                    className="h-10 w-auto"
+                  />
+                )}
+                <span className="text-2xl font-bold text-green-600">
+                  {logoText}
+                </span>
+              </Link>
+              <div className="hidden md:flex space-x-8">
+                {navbar.links.map((link: any, index: number) => (
+                  <Link
+                    key={index}
+                    href={link.url}
+                    target={link.newTab ? "_blank" : undefined}
+                    className="text-gray-700 hover:text-green-600 transition"
+                  >
+                    {link.text}
+                  </Link>
+                ))}
+                <Link
+                  href={navbar.button.url}
+                  target={navbar.button.newTab ? "_blank" : undefined}
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+                >
+                  {navbar.button.text}
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
 
-        <main className="dark:bg-black dark:text-gray-100 min-h-screen">
+        <main className="min-h-screen">
           {children}
         </main>
 
-        <Banner data={notificationBanner} />
+        {/* Footer - 始终显示 */}
+        <footer className="bg-gray-900 text-white py-12">
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              {/* Menu Links */}
+              <div>
+                <h3 className="text-lg font-bold mb-4">快速链接</h3>
+                <ul className="space-y-2">
+                  {footer.menuLinks.map((link: any, index: number) => (
+                    <li key={index}>
+                      <Link
+                        href={link.url}
+                        target={link.newTab ? "_blank" : undefined}
+                        className="text-gray-400 hover:text-white transition"
+                      >
+                        {link.text}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-        <Footer
-          logoUrl={footerLogoUrl}
-          logoText={footer.footerLogo.logoText}
-          menuLinks={footer.menuLinks}
-          categoryLinks={footer.categories.data}
-          legalLinks={footer.legalLinks}
-          socialLinks={footer.socialLinks}
-        />
+              {/* Contact Info */}
+              <div>
+                <h3 className="text-lg font-bold mb-4">联系我们</h3>
+                <ul className="space-y-2 text-gray-400">
+                  <li>电话: 400-888-6688</li>
+                  <li>邮箱: contact@shangnantea.com</li>
+                  <li>地址: 陕西省商洛市商南县</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Legal Links */}
+            <div className="pt-8 border-t border-gray-800 text-center">
+              <div className="flex flex-wrap justify-center gap-4 text-gray-400 text-sm">
+                {footer.legalLinks.map((link: any, index: number) => (
+                  <span key={index}>
+                    {link.url === '#' ? (
+                      link.text
+                    ) : (
+                      <Link
+                        href={link.url}
+                        target={link.newTab ? "_blank" : undefined}
+                        className="hover:text-white transition"
+                      >
+                        {link.text}
+                      </Link>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </footer>
       </body>
     </html>
   );
-}
-
-export async function generateStaticParams() {
-  return i18n.locales.map((locale) => ({ lang: locale }));
 }
